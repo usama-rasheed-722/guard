@@ -8,7 +8,7 @@ class AppCard extends StatelessWidget {
   final Color? backgroundColor;
   final double? elevation;
   final double? borderRadius;
-  final Border? border;
+  final BorderSide? borderSide;
   final VoidCallback? onTap;
   final bool isClickable;
 
@@ -20,7 +20,7 @@ class AppCard extends StatelessWidget {
     this.backgroundColor,
     this.elevation,
     this.borderRadius,
-    this.border,
+    this.borderSide,
     this.onTap,
     this.isClickable = false,
   });
@@ -33,7 +33,7 @@ class AppCard extends StatelessWidget {
       shadowColor: AppColors.shadow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(borderRadius ?? 12),
-        side: border != null ? BorderSide(color: border!.color, width: border!.width) : BorderSide.none,
+        side: borderSide ?? BorderSide.none,
       ),
       margin: margin ?? const EdgeInsets.all(8),
       child: Padding(
@@ -88,7 +88,7 @@ class AppInfoCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: (iconColor ?? AppColors.primary).withOpacity(0.1),
+                color: (iconColor ?? AppColors.primary).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -181,7 +181,7 @@ class AppStatusCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(

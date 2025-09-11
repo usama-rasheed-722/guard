@@ -13,7 +13,6 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
     final currentUser = ref.watch(userProvider) ?? user;
     return Scaffold(
       appBar: AppBar(
@@ -70,7 +69,7 @@ class ProfileScreen extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _getRoleColor(currentUser).withOpacity(0.1),
+                        color: _getRoleColor(currentUser).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(

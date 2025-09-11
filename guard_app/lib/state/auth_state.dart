@@ -1,35 +1,61 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
 import '../models/user_model.dart';
 
-part 'auth_state.freezed.dart';
+class AuthState {
+  final bool isLoading;
+  final bool isAuthenticated;
+  final User? user;
+  final String? error;
+  final String? token;
 
-@freezed
-class AuthState with _$AuthState {
-  const factory AuthState({
-    @Default(false) bool isLoading,
-    @Default(false) bool isAuthenticated,
+  const AuthState({
+    this.isLoading = false,
+    this.isAuthenticated = false,
+    this.user,
+    this.error,
+    this.token,
+  });
+
+  AuthState copyWith({
+    bool? isLoading,
+    bool? isAuthenticated,
     User? user,
     String? error,
     String? token,
-  }) = _AuthState;
+  }) {
+    return AuthState(
+      isLoading: isLoading ?? this.isLoading,
+      isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      user: user ?? this.user,
+      error: error,
+      token: token ?? this.token,
+    );
+  }
 }
 
-@freezed
-class LoginState with _$LoginState {
-  const factory LoginState({
-    @Default(false) bool isLoading,
-    @Default(false) bool isSuccess,
-    String? error,
-    User? user,
-  }) = _LoginState;
+class LoginState {
+  final bool isLoading;
+  final bool isSuccess;
+  final String? error;
+  final User? user;
+
+  const LoginState({
+    this.isLoading = false,
+    this.isSuccess = false,
+    this.error,
+    this.user,
+  });
 }
 
-@freezed
-class RegisterState with _$RegisterState {
-  const factory RegisterState({
-    @Default(false) bool isLoading,
-    @Default(false) bool isSuccess,
-    String? error,
-    User? user,
-  }) = _RegisterState;
+class RegisterState {
+  final bool isLoading;
+  final bool isSuccess;
+  final String? error;
+  final User? user;
+
+  const RegisterState({
+    this.isLoading = false,
+    this.isSuccess = false,
+    this.error,
+    this.user,
+  });
 }

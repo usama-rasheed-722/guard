@@ -43,7 +43,7 @@ class AppLoading extends StatelessWidget {
 
     if (isFullScreen) {
       return Scaffold(
-        backgroundColor: AppColors.background.withOpacity(0.8),
+        backgroundColor: AppColors.background.withValues(alpha: 0.8),
         body: loadingWidget,
       );
     }
@@ -73,7 +73,7 @@ class AppLoadingOverlay extends StatelessWidget {
         child,
         if (isLoading)
           Container(
-            color: AppColors.background.withOpacity(0.8),
+            color: AppColors.background.withValues(alpha: 0.8),
             child: AppLoading(
               message: loadingMessage,
               color: loadingColor,
