@@ -52,6 +52,7 @@ const createJob = async (req, res) => {
       }
       await JobLocation.create({
         job_id: job.id,
+        company_location_id,
         location_name: cl.location_name,
         address: cl.address,
         latitude: cl.latitude,
@@ -251,8 +252,7 @@ const updateJob = async (req, res) => {
 
     // Handle job location updates
     const currentjobLocation = await JobLocation.findOne({ where: { job_id: job.id } });
-    const currentcompanyLocation = await CompanyLocation.findOne({ where: { id: company_location_id, company_id: companyId } });
-    if (currentcompanyLocation.location_name != currentjobLocation.location_name) {
+    if (company_location_id != currentjobLocation.company_location_id) {
 
       await currentjobLocation.destroy({ where: { job_id: job.id } });
       // Switching to a saved company location
@@ -265,6 +265,7 @@ const updateJob = async (req, res) => {
 
       const newLocData = {
         job_id: job.id,
+        company_location_id,
         location_name: cl.location_name,
         address: cl.address,
         latitude: cl.latitude,
@@ -372,7 +373,7 @@ const getCompanyJobs = async (req, res) => {
       include: [
         {
           model: JobLocation,
-          as: 'locations'
+          as: 'location'
         },
         {
           model: Application,

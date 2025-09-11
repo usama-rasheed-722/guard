@@ -18,6 +18,16 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
       },
+      company_location_id: {
+        type: Sequelize.UUID,
+        allowNull: true,
+        references: {
+          model: 'company_locations',
+          key: 'id'
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL'
+      },
       location_name: {
         type: Sequelize.STRING(255),
         allowNull: false
@@ -66,6 +76,7 @@ module.exports = {
     });
 
     await queryInterface.addIndex('job_locations', ['job_id']);
+    await queryInterface.addIndex('job_locations', ['company_location_id']);
     await queryInterface.addIndex('job_locations', ['latitude', 'longitude']);
   },
 

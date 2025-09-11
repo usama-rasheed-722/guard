@@ -15,6 +15,14 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id'
       }
     },
+    company_location_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'company_locations',
+        key: 'id'
+      }
+    },
     location_name: {
       type: DataTypes.STRING(255),
       allowNull: false
@@ -69,6 +77,11 @@ module.exports = (sequelize, DataTypes) => {
     JobLocation.belongsTo(models.Job, {
       foreignKey: 'job_id',
       as: 'job'
+    });
+
+    JobLocation.belongsTo(models.CompanyLocation, {
+      foreignKey: 'company_location_id',
+      as: 'companyLocation'
     });
   };
 

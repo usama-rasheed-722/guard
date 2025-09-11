@@ -69,9 +69,9 @@ const validateJobCreation = [
     .isFloat({ min: 0 })
     .withMessage('Valid hourly rate is required'),
   body('company_location_id')
-    .trim()
-    .isLength({ min: 3, max: 255 })
-    .withMessage('Location is required'),
+    .optional()
+    .isUUID()
+    .withMessage('company_location_id must be a valid UUID'),
   body('required_guards')
     .optional()
     .isInt({ min: 1 })
