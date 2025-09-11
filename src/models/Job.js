@@ -93,9 +93,9 @@ module.exports = (sequelize, DataTypes) => {
       as: 'company'
     });
 
-    Job.hasMany(models.JobLocation, {
+    Job.hasOne(models.JobLocation, {
       foreignKey: 'job_id',
-      as: 'locations'
+      as: 'location'
     });
 
     Job.hasMany(models.Application, {

@@ -124,9 +124,51 @@ guard/
 - `GET /api/jobs` - Get all jobs (with filters)
 - `GET /api/jobs/:id` - Get job by ID
 - `POST /api/jobs` - Create job (Agency only)
+  - Note: One job has exactly one location.
+  - Provide either `location` inline OR `company_location_id` to copy from a saved company location.
+  - Example (inline):
+    ```json
+    {
+      "title": "Night Shift",
+      "date": "2025-09-12",
+      "start_time": "22:00:00",
+      "end_time": "06:00:00",
+      "hourly_rate": 15.5,
+      "required_guards": 2,
+      "location": {
+        "location_name": "Mall A",
+        "address": "123 Main St",
+        "latitude": 40.7128,
+        "longitude": -74.0060,
+        "hours_required": 8,
+        "start_time": "22:00:00",
+        "end_time": "06:00:00",
+        "required_guards": 2
+      }
+    }
+    ```
+  - Example (by reference):
+    ```json
+    {
+      "title": "Night Shift",
+      "date": "2025-09-12",
+      "start_time": "22:00:00",
+      "end_time": "06:00:00",
+      "hourly_rate": 15.5,
+      "required_guards": 2,
+      "company_location_id": "<uuid>"
+    }
+    ```
 - `PUT /api/jobs/:id` - Update job (Agency only)
 - `DELETE /api/jobs/:id` - Delete job (Agency only)
 - `GET /api/jobs/company/my-jobs` - Get company's jobs
+### Company Locations (Agency)
+- `GET /api/company-locations` - List own locations
+- `POST /api/company-locations` - Create a location
+- `GET /api/company-locations/:id` - Get a location (must own)
+- `PUT /api/company-locations/:id` - Update a location (must own)
+- `DELETE /api/company-locations/:id` - Delete a location (must own)
+
 
 ### Shifts (Permanent Work)
 - `GET /api/shifts` - Get all shifts (with filters)
@@ -169,6 +211,8 @@ guard/
 - **CompanyProfile**: Agency/company specific information
 - **GuardProfile**: Guard specific information and qualifications
 - **Jobs**: Temporary work opportunities
+- **JobLocation**: One-to-one with Job (a job has exactly one location)
+- **CompanyLocation**: Saved locations owned by an agency; can be referenced when creating a job
 - **Shifts**: Permanent recurring work assignments
 - **Applications**: Job/shift applications from guards
 - **Attendance**: Check-in/out records with verification

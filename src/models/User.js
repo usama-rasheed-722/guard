@@ -133,6 +133,12 @@ module.exports = (sequelize, DataTypes) => {
       as: 'receivedTransactions'
     });
 
+    // User has many CompanyLocations (if role is agency)
+    User.hasMany(models.CompanyLocation, {
+      foreignKey: 'company_id',
+      as: 'locations'
+    });
+
     // User has many Feedback (as sender)
     User.hasMany(models.Feedback, {
       foreignKey: 'from_user_id',

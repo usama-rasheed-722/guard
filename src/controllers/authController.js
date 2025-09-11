@@ -49,7 +49,6 @@ const register = async (req, res) => {
 
     // Generate token
     const token = generateToken(user.id, user.role);
-
     // Remove password from response
     const userResponse = {
       id: user.id,

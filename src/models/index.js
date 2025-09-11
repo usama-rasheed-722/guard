@@ -13,6 +13,7 @@ const Attendance = require('./Attendance');
 const Wallet = require('./Wallet');
 const Transaction = require('./Transaction');
 const Feedback = require('./Feedback');
+const CompanyLocation = require('./CompanyLocation');
 
 // Initialize models
 const models = {
@@ -26,7 +27,8 @@ const models = {
   Attendance: Attendance(sequelize, DataTypes),
   Wallet: Wallet(sequelize, DataTypes),
   Transaction: Transaction(sequelize, DataTypes),
-  Feedback: Feedback(sequelize, DataTypes)
+  Feedback: Feedback(sequelize, DataTypes),
+  CompanyLocation: CompanyLocation(sequelize, DataTypes)
 };
 
 // Define associations

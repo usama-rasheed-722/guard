@@ -8,6 +8,7 @@ const shiftRoutes = require('./shifts');
 const applicationRoutes = require('./applications');
 const attendanceRoutes = require('./attendance');
 const walletRoutes = require('./wallet');
+const companyLocationRoutes = require('./companyLocations');
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -31,7 +32,8 @@ router.get('/', (req, res) => {
       shifts: '/api/shifts',
       applications: '/api/applications',
       attendance: '/api/attendance',
-      wallet: '/api/wallet'
+      wallet: '/api/wallet',
+      companyLocations: '/api/company-locations'
     },
     documentation: 'https://github.com/usama-rasheed-722/guard#api-documentation'
   });
@@ -44,5 +46,6 @@ router.use('/shifts', shiftRoutes);
 router.use('/applications', applicationRoutes);
 router.use('/attendance', attendanceRoutes);
 router.use('/wallet', walletRoutes);
+router.use('/company-locations', companyLocationRoutes);
 
 module.exports = router;

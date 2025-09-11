@@ -17,7 +17,9 @@ const createJob = async (req, res) => {
       required_guards = 1,
       requirements,
       special_instructions,
-      locations
+      location,
+      locations,
+      company_location_id
     } = req.body;
 
     // Calculate total hours
@@ -44,13 +46,31 @@ const createJob = async (req, res) => {
       special_instructions
     });
 
-    // Create job locations if provided
-    if (locations && locations.length > 0) {
-      const jobLocations = locations.map(location => ({
+    // Create job location (single) if provided
+    const resolvedLocation = location || (Array.isArray(locations) ? locations[0] : undefined);
+    if (company_location_id && !resolvedLocation) {
+      const { CompanyLocation } = require('../models');
+      const cl = await CompanyLocation.findOne({ where: { id: company_location_id, company_id: companyId } });
+      if (!cl) {
+        return errorResponse(res, 'Invalid company location', 400);
+      }
+      await JobLocation.create({
         job_id: job.id,
-        ...location
-      }));
-      await JobLocation.bulkCreate(jobLocations);
+        location_name: cl.location_name,
+        address: cl.address,
+        latitude: cl.latitude,
+        longitude: cl.longitude,
+        hours_required: (new Date(`2000-01-01T${end_time}`) - new Date(`2000-01-01T${start_time}`)) / (1000 * 60 * 60),
+        start_time,
+        end_time,
+        required_guards,
+        special_requirements: cl.special_requirements
+      });
+    } else if (resolvedLocation) {
+      await JobLocation.create({
+        job_id: job.id,
+        ...resolvedLocation
+      });
     }
 
     // Fetch created job with locations
@@ -58,7 +78,7 @@ const createJob = async (req, res) => {
       include: [
         {
           model: JobLocation,
-          as: 'locations'
+          as: 'location'
         },
         {
           model: User,
@@ -133,7 +153,7 @@ const getJobs = async (req, res) => {
       include: [
         {
           model: JobLocation,
-          as: 'locations'
+          as: 'location'
         },
         {
           model: User,
@@ -165,7 +185,7 @@ const getJobById = async (req, res) => {
       include: [
         {
           model: JobLocation,
-          as: 'locations'
+          as: 'location'
         },
         {
           model: User,
