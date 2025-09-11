@@ -68,6 +68,10 @@ const validateJobCreation = [
     .isDecimal({ decimal_digits: '0,2' })
     .isFloat({ min: 0 })
     .withMessage('Valid hourly rate is required'),
+  body('company_location_id')
+    .trim()
+    .isLength({ min: 3, max: 255 })
+    .withMessage('Location is required'),
   body('required_guards')
     .optional()
     .isInt({ min: 1 })

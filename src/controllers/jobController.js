@@ -17,8 +17,6 @@ const createJob = async (req, res) => {
       required_guards = 1,
       requirements,
       special_instructions,
-      location,
-      locations,
       company_location_id
     } = req.body;
 
@@ -46,9 +44,7 @@ const createJob = async (req, res) => {
       special_instructions
     });
 
-    // Create job location (single) if provided
-    const resolvedLocation = location || (Array.isArray(locations) ? locations[0] : undefined);
-    if (company_location_id && !resolvedLocation) {
+    if (company_location_id) {
       const { CompanyLocation } = require('../models');
       const cl = await CompanyLocation.findOne({ where: { id: company_location_id, company_id: companyId } });
       if (!cl) {
@@ -65,11 +61,6 @@ const createJob = async (req, res) => {
         end_time,
         required_guards,
         special_requirements: cl.special_requirements
-      });
-    } else if (resolvedLocation) {
-      await JobLocation.create({
-        job_id: job.id,
-        ...resolvedLocation
       });
     }
 
@@ -223,49 +214,86 @@ const updateJob = async (req, res) => {
   try {
     const { id } = req.params;
     const companyId = req.user.id;
-    const updateData = req.body;
+    const updateData = { ...req.body };
+    const company_location_id = updateData.company_location_id;
 
+    const { JobLocation, CompanyLocation, User } = require('../models');
+
+    // Fetch job
     const job = await Job.findByPk(id);
-    if (!job) {
-      return notFoundResponse(res, 'Job not found');
-    }
+    if (!job) return notFoundResponse(res, 'Job not found');
 
-    // Check if user owns this job
+    // Ownership check
     if (job.company_id !== companyId) {
       return errorResponse(res, 'Unauthorized to update this job', 403);
     }
 
-    // Check if job can be updated (not in progress or completed)
+    // Status restriction check
     if (['in_progress', 'completed'].includes(job.status)) {
       return errorResponse(res, 'Cannot update job that is in progress or completed', 400);
     }
 
-    // Recalculate total hours and budget if time or rate changed
-    if (updateData.start_time || updateData.end_time || updateData.hourly_rate) {
+    // Recalculate totals if relevant fields changed
+    const recalcNeeded = updateData.start_time || updateData.end_time || updateData.hourly_rate || updateData.required_guards;
+    if (recalcNeeded) {
       const startTime = new Date(`2000-01-01T${updateData.start_time || job.start_time}`);
       const endTime = new Date(`2000-01-01T${updateData.end_time || job.end_time}`);
       const totalHours = (endTime - startTime) / (1000 * 60 * 60);
-      const hourlyRate = updateData.hourly_rate || job.hourly_rate;
-      const requiredGuards = updateData.required_guards || job.required_guards;
 
       updateData.total_hours = totalHours;
-      updateData.total_budget = totalHours * hourlyRate * requiredGuards;
+      updateData.hourly_rate = updateData.hourly_rate || job.hourly_rate;
+      updateData.required_guards = updateData.required_guards || job.required_guards;
+      updateData.total_budget = totalHours * updateData.hourly_rate * updateData.required_guards;
     }
 
+    // Update job record
     await job.update(updateData);
 
-    // Fetch updated job with relations
+    // Handle job location updates
+    const currentjobLocation = await JobLocation.findOne({ where: { job_id: job.id } });
+    const currentcompanyLocation = await CompanyLocation.findOne({ where: { id: company_location_id, company_id: companyId } });
+    if (currentcompanyLocation.location_name != currentjobLocation.location_name) {
+
+      await currentjobLocation.destroy({ where: { job_id: job.id } });
+      // Switching to a saved company location
+      const cl = await CompanyLocation.findOne({
+        where: { id: company_location_id, company_id: companyId }
+      });
+      if (!cl) return errorResponse(res, 'Invalid company location', 400);
+
+      const hoursRequired = calcHours(job.start_time, job.end_time);
+
+      const newLocData = {
+        job_id: job.id,
+        location_name: cl.location_name,
+        address: cl.address,
+        latitude: cl.latitude,
+        longitude: cl.longitude,
+        hours_required: hoursRequired,
+        start_time: job.start_time,
+        end_time: job.end_time,
+        required_guards: job.required_guards,
+        special_requirements: cl.special_requirements
+      };
+
+      await JobLocation.create(newLocData);
+
+    } else if (recalcNeeded && currentjobLocation) {
+      // Sync changes to existing location
+      const hoursRequired = calcHours(job.start_time, job.end_time);
+      await currentjobLocation.update({
+        start_time: job.start_time,
+        end_time: job.end_time,
+        hours_required: hoursRequired,
+        required_guards: job.required_guards
+      });
+    }
+
+    // Return updated job with relations
     const updatedJob = await Job.findByPk(id, {
       include: [
-        {
-          model: JobLocation,
-          as: 'locations'
-        },
-        {
-          model: User,
-          as: 'company',
-          attributes: ['id', 'name', 'email']
-        }
+        { model: JobLocation, as: 'location' }, // must match association alias
+        { model: User, as: 'company', attributes: ['id', 'name', 'email'] }
       ]
     });
 
@@ -276,6 +304,16 @@ const updateJob = async (req, res) => {
     return serverErrorResponse(res, 'Failed to update job', error);
   }
 };
+
+/**
+ * Utility: calculate hours difference between two times (HH:mm:ss format)
+ */
+function calcHours(startTimeStr, endTimeStr) {
+  const start = new Date(`2000-01-01T${startTimeStr}`);
+  const end = new Date(`2000-01-01T${endTimeStr}`);
+  return (end - start) / (1000 * 60 * 60);
+}
+
 
 // Delete job
 const deleteJob = async (req, res) => {
