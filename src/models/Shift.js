@@ -7,6 +7,14 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true
     },
+    company_location_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'company_locations',
+        key: 'id'
+      }
+    },
     company_id: {
       type: DataTypes.UUID,
       allowNull: false,
@@ -110,6 +118,11 @@ module.exports = (sequelize, DataTypes) => {
     Shift.belongsTo(models.User, {
       foreignKey: 'company_id',
       as: 'company'
+    });
+
+    Shift.belongsTo(models.CompanyLocation, {
+      foreignKey: 'company_location_id',
+      as: 'companyLocation'
     });
 
     Shift.belongsTo(models.User, {

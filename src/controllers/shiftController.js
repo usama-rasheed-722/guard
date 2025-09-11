@@ -1,4 +1,4 @@
-const { Shift, User, Application, Attendance } = require('../models');
+const { Shift, User, Application, Attendance, CompanyLocation } = require('../models');
 const { successResponse, errorResponse, serverErrorResponse, notFoundResponse, paginatedResponse } = require('../helpers/response');
 const { getPaginationParams, getPaginationMeta, buildSearchQuery, buildDateRangeQuery, buildSortOptions } = require('../helpers/pagination');
 const { Op } = require('sequelize');
@@ -21,18 +21,29 @@ const createShift = async (req, res) => {
       start_date,
       end_date,
       requirements,
-      special_instructions
+      special_instructions,
+      company_location_id
     } = req.body;
+
+    let loc = { location_name, address, latitude, longitude };
+    let companyLocationIdToSave = company_location_id || null;
+    if (company_location_id) {
+      const cl = await CompanyLocation.findOne({ where: { id: company_location_id, company_id: companyId } });
+      if (!cl) return errorResponse(res, 'Invalid company location', 400);
+      loc = {
+        location_name: cl.location_name,
+        address: cl.address,
+        latitude: cl.latitude,
+        longitude: cl.longitude
+      };
+    }
 
     // Create shift
     const shift = await Shift.create({
       company_id: companyId,
       title,
       description,
-      location_name,
-      address,
-      latitude,
-      longitude,
+      ...loc,
       start_time,
       end_time,
       days_of_week,
@@ -40,7 +51,8 @@ const createShift = async (req, res) => {
       start_date,
       end_date,
       requirements,
-      special_instructions
+      special_instructions,
+      company_location_id: companyLocationIdToSave
     });
 
     // Fetch created shift with company info
@@ -50,6 +62,11 @@ const createShift = async (req, res) => {
           model: User,
           as: 'company',
           attributes: ['id', 'name', 'email']
+        },
+        {
+          model: CompanyLocation,
+          as: 'companyLocation',
+          required: false
         }
       ]
     });
@@ -194,7 +211,7 @@ const updateShift = async (req, res) => {
   try {
     const { id } = req.params;
     const companyId = req.user.id;
-    const updateData = req.body;
+    const updateData = { ...req.body };
 
     const shift = await Shift.findByPk(id);
     if (!shift) {
@@ -211,6 +228,16 @@ const updateShift = async (req, res) => {
       return errorResponse(res, 'Cannot update shift that is active or completed', 400);
     }
 
+    // Handle company_location_id switch
+    if (updateData.company_location_id) {
+      const cl = await CompanyLocation.findOne({ where: { id: updateData.company_location_id, company_id: companyId } });
+      if (!cl) return errorResponse(res, 'Invalid company location', 400);
+      updateData.location_name = cl.location_name;
+      updateData.address = cl.address;
+      updateData.latitude = cl.latitude;
+      updateData.longitude = cl.longitude;
+    }
+
     await shift.update(updateData);
 
     // Fetch updated shift with relations
@@ -225,6 +252,11 @@ const updateShift = async (req, res) => {
           model: User,
           as: 'guard',
           attributes: ['id', 'name', 'email'],
+          required: false
+        },
+        {
+          model: CompanyLocation,
+          as: 'companyLocation',
           required: false
         }
       ]
