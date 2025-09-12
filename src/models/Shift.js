@@ -23,14 +23,6 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id'
       }
     },
-    guard_id: {
-      type: DataTypes.UUID,
-      allowNull: true,
-      references: {
-        model: 'users',
-        key: 'id'
-      }
-    },
     title: {
       type: DataTypes.STRING(255),
       allowNull: false
@@ -103,9 +95,6 @@ module.exports = (sequelize, DataTypes) => {
         fields: ['company_id']
       },
       {
-        fields: ['guard_id']
-      },
-      {
         fields: ['status']
       },
       {
@@ -125,9 +114,9 @@ module.exports = (sequelize, DataTypes) => {
       as: 'companyLocation'
     });
 
-    Shift.belongsTo(models.User, {
-      foreignKey: 'guard_id',
-      as: 'guard'
+    Shift.hasMany(models.ShiftAssignment, {
+      foreignKey: 'shift_id',
+      as: 'assignments'
     });
 
     Shift.hasMany(models.Application, {

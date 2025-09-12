@@ -85,18 +85,6 @@ const validateShiftCreation = [
     .trim()
     .isLength({ min: 3, max: 255 })
     .withMessage('Title must be between 3 and 255 characters'),
-  body('location_name')
-    .trim()
-    .isLength({ min: 3, max: 255 })
-    .withMessage('Location name must be between 3 and 255 characters'),
-  body('latitude')
-    .isDecimal()
-    .isFloat({ min: -90, max: 90 })
-    .withMessage('Valid latitude is required'),
-  body('longitude')
-    .isDecimal()
-    .isFloat({ min: -180, max: 180 })
-    .withMessage('Valid longitude is required'),
   body('start_time')
     .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
     .withMessage('Valid start time is required (HH:MM format)'),

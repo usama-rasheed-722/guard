@@ -14,6 +14,7 @@ const Wallet = require('./Wallet');
 const Transaction = require('./Transaction');
 const Feedback = require('./Feedback');
 const CompanyLocation = require('./CompanyLocation');
+const ShiftAssignment = require('./ShiftAssignment');
 
 // Initialize models
 const models = {
@@ -23,6 +24,7 @@ const models = {
   Job: Job(sequelize, DataTypes),
   JobLocation: JobLocation(sequelize, DataTypes),
   Shift: Shift(sequelize, DataTypes),
+  ShiftAssignment: ShiftAssignment(sequelize, DataTypes),
   Application: Application(sequelize, DataTypes),
   Attendance: Attendance(sequelize, DataTypes),
   Wallet: Wallet(sequelize, DataTypes),

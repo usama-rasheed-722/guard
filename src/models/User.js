@@ -97,11 +97,6 @@ module.exports = (sequelize, DataTypes) => {
       as: 'companyShifts'
     });
 
-    // User has many Shifts (as guard)
-    User.hasMany(models.Shift, {
-      foreignKey: 'guard_id',
-      as: 'guardShifts'
-    });
 
     // User has many Applications (as guard)
     User.hasMany(models.Application, {

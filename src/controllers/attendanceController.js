@@ -1,6 +1,7 @@
-const { Attendance, Job, Shift, User } = require('../models');
+const { Attendance, Job, Shift, User, ShiftAssignment } = require('../models');
 const { successResponse, errorResponse, serverErrorResponse, notFoundResponse, paginatedResponse } = require('../helpers/response');
 const { getPaginationParams, getPaginationMeta, buildSortOptions } = require('../helpers/pagination');
+const { Op } = require('sequelize');
 const moment = require('moment');
 
 // Check in for job or shift
@@ -44,7 +45,17 @@ const checkIn = async (req, res) => {
       if (!shift) {
         return notFoundResponse(res, 'Shift not found');
       }
-      if (shift.guard_id !== guardId) {
+      
+      // Check if guard is assigned to this shift through ShiftAssignment
+      const assignment = await ShiftAssignment.findOne({
+        where: {
+          shift_id: shift_id,
+          guard_id: guardId,
+          status: { [Op.in]: ['accepted', 'active', 'completed'] }
+        }
+      });
+      
+      if (!assignment) {
         return errorResponse(res, 'You are not assigned to this shift', 403);
       }
     }

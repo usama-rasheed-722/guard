@@ -1,4 +1,4 @@
-const { Shift, User, Application, Attendance, CompanyLocation } = require('../models');
+const { Shift, User, Application, Attendance, CompanyLocation, ShiftAssignment } = require('../models');
 const { successResponse, errorResponse, serverErrorResponse, notFoundResponse, paginatedResponse } = require('../helpers/response');
 const { getPaginationParams, getPaginationMeta, buildSearchQuery, buildDateRangeQuery, buildSortOptions } = require('../helpers/pagination');
 const { Op } = require('sequelize');
@@ -10,13 +10,9 @@ const createShift = async (req, res) => {
     const {
       title,
       description,
-      location_name,
-      address,
-      latitude,
-      longitude,
       start_time,
       end_time,
-      days_of_week,
+      days_of_week, // array of days of the week
       hourly_rate,
       start_date,
       end_date,
@@ -25,19 +21,15 @@ const createShift = async (req, res) => {
       company_location_id
     } = req.body;
 
-    let loc = { location_name, address, latitude, longitude };
-    let companyLocationIdToSave = company_location_id || null;
-    if (company_location_id) {
-      const cl = await CompanyLocation.findOne({ where: { id: company_location_id, company_id: companyId } });
-      if (!cl) return errorResponse(res, 'Invalid company location', 400);
-      loc = {
-        location_name: cl.location_name,
-        address: cl.address,
-        latitude: cl.latitude,
-        longitude: cl.longitude
-      };
-    }
-
+    const cl = await CompanyLocation.findOne({ where: { id: company_location_id, company_id: companyId } });
+    if (!cl) return errorResponse(res, 'Invalid company location', 400);
+    loc = {
+      location_name: cl.location_name,
+      address: cl.address,
+      latitude: cl.latitude,
+      longitude: cl.longitude
+    };
+  
     // Create shift
     const shift = await Shift.create({
       company_id: companyId,
@@ -52,7 +44,7 @@ const createShift = async (req, res) => {
       end_date,
       requirements,
       special_instructions,
-      company_location_id: companyLocationIdToSave
+      company_location_id
     });
 
     // Fetch created shift with company info
@@ -141,9 +133,15 @@ const getShifts = async (req, res) => {
           attributes: ['id', 'name', 'email']
         },
         {
-          model: User,
-          as: 'guard',
-          attributes: ['id', 'name', 'email'],
+          model: ShiftAssignment,
+          as: 'assignments',
+          include: [
+            {
+              model: User,
+              as: 'guard',
+              attributes: ['id', 'name', 'email']
+            }
+          ],
           required: false
         }
       ],
@@ -175,9 +173,20 @@ const getShiftById = async (req, res) => {
           attributes: ['id', 'name', 'email']
         },
         {
-          model: User,
-          as: 'guard',
-          attributes: ['id', 'name', 'email'],
+          model: ShiftAssignment,
+          as: 'assignments',
+          include: [
+            {
+              model: User,
+              as: 'guard',
+              attributes: ['id', 'name', 'email']
+            },
+            {
+              model: User,
+              as: 'assignedBy',
+              attributes: ['id', 'name', 'email']
+            }
+          ],
           required: false
         },
         {
@@ -305,7 +314,7 @@ const deleteShift = async (req, res) => {
 const assignGuard = async (req, res) => {
   try {
     const { id } = req.params;
-    const { guard_id } = req.body;
+    const { guard_id, notes } = req.body;
     const companyId = req.user.id;
 
     const shift = await Shift.findByPk(id);
@@ -324,21 +333,49 @@ const assignGuard = async (req, res) => {
     }
 
     // Verify guard exists and is active
-    const guard = await User.findByPk(guard_id, {
-      where: { role: 'guard', status: 'active' }
+    const guard = await User.findOne({
+      where: { 
+        id: guard_id, 
+        role: 'guard', 
+        status: 'active' 
+      }
     });
 
     if (!guard) {
       return errorResponse(res, 'Guard not found or not active', 404);
     }
 
-    // Update shift
-    await shift.update({
-      guard_id,
-      status: 'assigned'
+    // Check if guard is already assigned to this shift (excluding removed assignments)
+    const existingAssignment = await ShiftAssignment.findOne({
+      where: {
+        shift_id: id,
+        guard_id: guard_id,
+        status: { [Op.ne]: 'removed' }
+      }
     });
 
-    // Fetch updated shift
+    if (existingAssignment) {
+      return errorResponse(res, 'Guard is already assigned to this shift', 400);
+    }
+
+    // Create shift assignment
+    const assignment = await ShiftAssignment.create({
+      shift_id: id,
+      guard_id: guard_id,
+      assigned_by: companyId,
+      notes: notes || null
+    });
+
+    // Update shift status to assigned if it's the first active assignment
+    const assignmentCount = await ShiftAssignment.count({
+      where: { shift_id: id, status: { [Op.notIn]: ['rejected', 'removed'] } }
+    });
+
+    if (assignmentCount === 1) {
+      await shift.update({ status: 'assigned' });
+    }
+
+    // Fetch updated shift with assignments
     const updatedShift = await Shift.findByPk(id, {
       include: [
         {
@@ -347,14 +384,28 @@ const assignGuard = async (req, res) => {
           attributes: ['id', 'name', 'email']
         },
         {
-          model: User,
-          as: 'guard',
-          attributes: ['id', 'name', 'email']
+          model: ShiftAssignment,
+          as: 'assignments',
+          include: [
+            {
+              model: User,
+              as: 'guard',
+              attributes: ['id', 'name', 'email']
+            },
+            {
+              model: User,
+              as: 'assignedBy',
+              attributes: ['id', 'name', 'email']
+            }
+          ]
         }
       ]
     });
 
-    return successResponse(res, 'Guard assigned to shift successfully', { shift: updatedShift });
+    return successResponse(res, 'Guard assigned to shift successfully', { 
+      shift: updatedShift,
+      assignment: assignment
+    });
 
   } catch (error) {
     console.error('Assign guard error:', error);
@@ -365,7 +416,7 @@ const assignGuard = async (req, res) => {
 // Remove guard from shift
 const removeGuard = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id, assignment_id } = req.params;
     const companyId = req.user.id;
 
     const shift = await Shift.findByPk(id);
@@ -378,22 +429,285 @@ const removeGuard = async (req, res) => {
       return errorResponse(res, 'Unauthorized to remove guard from this shift', 403);
     }
 
-    // Check if shift has a guard assigned
-    if (!shift.guard_id) {
-      return errorResponse(res, 'No guard assigned to this shift', 400);
-    }
-
-    // Update shift
-    await shift.update({
-      guard_id: null,
-      status: 'open'
+    // Find the assignment
+    const assignment = await ShiftAssignment.findOne({
+      where: {
+        id: assignment_id,
+        shift_id: id
+      }
     });
 
-    return successResponse(res, 'Guard removed from shift successfully');
+    if (!assignment) {
+      return notFoundResponse(res, 'Assignment not found');
+    }
+
+    // Check if assignment can be removed
+    if (assignment.status === 'removed') {
+      return errorResponse(res, 'Guard is already removed from this shift', 400);
+    }
+
+    // Update assignment status to removed instead of deleting
+    await assignment.update({ status: 'removed' });
+
+    // Check if there are any remaining active assignments (excluding removed and rejected)
+    const remainingActiveAssignments = await ShiftAssignment.count({
+      where: { 
+        shift_id: id, 
+        status: { [Op.notIn]: ['rejected', 'removed'] } 
+      }
+    });
+
+    // Update shift status to open if no active assignments remain
+    if (remainingActiveAssignments === 0) {
+      await shift.update({ status: 'open' });
+    }
+
+    // Fetch updated assignment with guard info
+    const updatedAssignment = await ShiftAssignment.findByPk(assignment_id, {
+      include: [
+        {
+          model: User,
+          as: 'guard',
+          attributes: ['id', 'name', 'email']
+        },
+        {
+          model: User,
+          as: 'assignedBy',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
+    });
+
+    return successResponse(res, 'Guard removed from shift successfully', { 
+      assignment: updatedAssignment 
+    });
 
   } catch (error) {
     console.error('Remove guard error:', error);
     return serverErrorResponse(res, 'Failed to remove guard', error);
+  }
+};
+
+// Update assignment status (for guards to accept/reject assignments)
+const updateAssignmentStatus = async (req, res) => {
+  try {
+    const { id, assignment_id } = req.params;
+    const { status } = req.body;
+    const guardId = req.user.id;
+
+    // Validate status
+    const validStatuses = ['accepted', 'rejected'];
+    if (!validStatuses.includes(status)) {
+      return errorResponse(res, 'Invalid status. Must be accepted or rejected', 400);
+    }
+
+    // Find the assignment
+    const assignment = await ShiftAssignment.findOne({
+      where: {
+        id: assignment_id,
+        shift_id: id,
+        guard_id: guardId
+      }
+    });
+
+    if (!assignment) {
+      return notFoundResponse(res, 'Assignment not found');
+    }
+
+    // Check if assignment can be updated
+    if (assignment.status !== 'assigned') {
+      return errorResponse(res, 'Assignment status cannot be changed', 400);
+    }
+
+    // Update assignment
+    const updateData = { status };
+    if (status === 'accepted') {
+      updateData.accepted_at = new Date();
+    }
+
+    await assignment.update(updateData);
+
+    // If accepted, update shift status to active
+    if (status === 'accepted') {
+      const shift = await Shift.findByPk(id);
+      await shift.update({ status: 'active' });
+    }
+
+    return successResponse(res, `Assignment ${status} successfully`, { assignment });
+
+  } catch (error) {
+    console.error('Update assignment status error:', error);
+    return serverErrorResponse(res, 'Failed to update assignment status', error);
+  }
+};
+
+// Get shift assignments
+const getShiftAssignments = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const companyId = req.user.id;
+
+    const shift = await Shift.findByPk(id);
+    if (!shift) {
+      return notFoundResponse(res, 'Shift not found');
+    }
+
+    // Check if user owns this shift
+    if (shift.company_id !== companyId) {
+      return errorResponse(res, 'Unauthorized to view shift assignments', 403);
+    }
+
+    const assignments = await ShiftAssignment.findAll({
+      where: { shift_id: id },
+      include: [
+        {
+          model: User,
+          as: 'guard',
+          attributes: ['id', 'name', 'email', 'phone']
+        },
+        {
+          model: User,
+          as: 'assignedBy',
+          attributes: ['id', 'name', 'email']
+        }
+      ],
+      order: [['assigned_at', 'DESC']]
+    });
+
+    return successResponse(res, 'Shift assignments retrieved successfully', { assignments });
+
+  } catch (error) {
+    console.error('Get shift assignments error:', error);
+    return serverErrorResponse(res, 'Failed to get shift assignments', error);
+  }
+};
+
+// Get count of guards working on a shift
+const getShiftGuardCount = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const companyId = req.user.id;
+
+    const shift = await Shift.findByPk(id);
+    if (!shift) {
+      return notFoundResponse(res, 'Shift not found');
+    }
+
+    // Check if user owns this shift
+    if (shift.company_id !== companyId) {
+      return errorResponse(res, 'Unauthorized to view shift guard count', 403);
+    }
+
+    // Count active assignments (accepted, active, completed) - excluding removed and rejected
+    const activeGuardCount = await ShiftAssignment.count({
+      where: { 
+        shift_id: id,
+        status: { [Op.in]: ['accepted', 'active', 'completed'] }
+      }
+    });
+
+    // Count total assignments (including assigned, rejected, terminated)
+    const totalAssignments = await ShiftAssignment.count({
+      where: { shift_id: id }
+    });
+
+    // Count by status
+    const statusCounts = await ShiftAssignment.findAll({
+      where: { shift_id: id },
+      attributes: [
+        'status',
+        [ShiftAssignment.sequelize.fn('COUNT', ShiftAssignment.sequelize.col('id')), 'count']
+      ],
+      group: ['status'],
+      raw: true
+    });
+
+    const statusBreakdown = statusCounts.reduce((acc, item) => {
+      acc[item.status] = parseInt(item.count);
+      return acc;
+    }, {});
+
+    return successResponse(res, 'Shift guard count retrieved successfully', {
+      shift_id: id,
+      active_guards: activeGuardCount,
+      total_assignments: totalAssignments,
+      status_breakdown: statusBreakdown
+    });
+
+  } catch (error) {
+    console.error('Get shift guard count error:', error);
+    return serverErrorResponse(res, 'Failed to get shift guard count', error);
+  }
+};
+
+// Get list of guards working on a shift
+const getShiftGuards = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.query; // Optional filter by status
+    const companyId = req.user.id;
+
+    const shift = await Shift.findByPk(id);
+    if (!shift) {
+      return notFoundResponse(res, 'Shift not found');
+    }
+
+    // Check if user owns this shift
+    if (shift.company_id !== companyId) {
+      return errorResponse(res, 'Unauthorized to view shift guards', 403);
+    }
+
+    // Build where clause
+    const whereClause = { shift_id: id };
+    if (status) {
+      whereClause.status = status;
+    }
+
+    const assignments = await ShiftAssignment.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: User,
+          as: 'guard',
+          attributes: ['id', 'name', 'email', 'phone', 'status'],
+          include: [
+            {
+              model: require('../models').GuardProfile,
+              as: 'guardProfile',
+              attributes: ['id', 'experience_years', 'specializations', 'certifications'],
+              required: false
+            }
+          ]
+        },
+        {
+          model: User,
+          as: 'assignedBy',
+          attributes: ['id', 'name', 'email']
+        }
+      ],
+      order: [['assigned_at', 'DESC']]
+    });
+
+    // Transform data to focus on guard information
+    const guards = assignments.map(assignment => ({
+      assignment_id: assignment.id,
+      guard: assignment.guard,
+      status: assignment.status,
+      assigned_at: assignment.assigned_at,
+      accepted_at: assignment.accepted_at,
+      assigned_by: assignment.assignedBy,
+      notes: assignment.notes
+    }));
+
+    return successResponse(res, 'Shift guards retrieved successfully', {
+      shift_id: id,
+      guards: guards,
+      total_count: guards.length
+    });
+
+  } catch (error) {
+    console.error('Get shift guards error:', error);
+    return serverErrorResponse(res, 'Failed to get shift guards', error);
   }
 };
 
@@ -422,9 +736,15 @@ const getCompanyShifts = async (req, res) => {
       where: whereClause,
       include: [
         {
-          model: User,
-          as: 'guard',
-          attributes: ['id', 'name', 'email'],
+          model: ShiftAssignment,
+          as: 'assignments',
+          include: [
+            {
+              model: User,
+              as: 'guard',
+              attributes: ['id', 'name', 'email']
+            }
+          ],
           required: false
         },
         {
@@ -468,20 +788,26 @@ const getGuardShifts = async (req, res) => {
 
     const { page: finalPage, limit: finalLimit, offset } = getPaginationParams(page, limit);
 
-    const whereClause = { guard_id: guardId };
+    // Build where clause for assignments
+    const assignmentWhereClause = { guard_id: guardId };
     if (status) {
-      whereClause.status = status;
+      assignmentWhereClause.status = status;
     }
 
-    const totalItems = await Shift.count({ where: whereClause });
-
-    const shifts = await Shift.findAndCountAll({
-      where: whereClause,
+    // Get assignments with pagination
+    const assignments = await ShiftAssignment.findAndCountAll({
+      where: assignmentWhereClause,
       include: [
         {
-          model: User,
-          as: 'company',
-          attributes: ['id', 'name', 'email']
+          model: Shift,
+          as: 'shift',
+          include: [
+            {
+              model: User,
+              as: 'company',
+              attributes: ['id', 'name', 'email']
+            }
+          ]
         }
       ],
       order: buildSortOptions(sort_by, sort_order),
@@ -489,9 +815,9 @@ const getGuardShifts = async (req, res) => {
       offset
     });
 
-    const pagination = getPaginationMeta(totalItems, finalPage, finalLimit);
+    const pagination = getPaginationMeta(assignments.count, finalPage, finalLimit);
 
-    return paginatedResponse(res, 'Guard shifts retrieved successfully', shifts.rows, pagination);
+    return paginatedResponse(res, 'Guard shifts retrieved successfully', assignments.rows, pagination);
 
   } catch (error) {
     console.error('Get guard shifts error:', error);
@@ -507,6 +833,10 @@ module.exports = {
   deleteShift,
   assignGuard,
   removeGuard,
+  updateAssignmentStatus,
+  getShiftAssignments,
+  getShiftGuardCount,
+  getShiftGuards,
   getCompanyShifts,
   getGuardShifts
 };
