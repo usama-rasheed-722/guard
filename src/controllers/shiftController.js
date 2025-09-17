@@ -133,8 +133,25 @@ const getShifts = async (req, res) => {
           attributes: ['id', 'name', 'email']
         },
         {
+          model: CompanyLocation,
+          as: 'companyLocation',
+          required: false
+        },
+        {
           model: ShiftAssignment,
           as: 'assignments',
+          include: [
+            {
+              model: User,
+              as: 'guard',
+              attributes: ['id', 'name', 'email']
+            }
+          ],
+          required: false
+        },
+        {
+          model: Application,
+          as: 'applications',
           include: [
             {
               model: User,
@@ -152,7 +169,7 @@ const getShifts = async (req, res) => {
 
     const pagination = getPaginationMeta(totalItems, finalPage, finalLimit);
 
-    return paginatedResponse(res, 'Shifts retrieved successfully', shifts.rows, pagination);
+    return paginatedResponse(res, 'Shifts retrieved successfully 1', shifts.rows, pagination);
 
   } catch (error) {
     console.error('Get shifts error:', error);
@@ -256,12 +273,6 @@ const updateShift = async (req, res) => {
           model: User,
           as: 'company',
           attributes: ['id', 'name', 'email']
-        },
-        {
-          model: User,
-          as: 'guard',
-          attributes: ['id', 'name', 'email'],
-          required: false
         },
         {
           model: CompanyLocation,

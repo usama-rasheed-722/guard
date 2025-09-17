@@ -1,4 +1,4 @@
-const { Application, Job, Shift, User } = require('../models');
+const { Application, Job, Shift, ShiftAssignment, JobAssignment, User } = require('../models');
 const { successResponse, errorResponse, serverErrorResponse, notFoundResponse, paginatedResponse } = require('../helpers/response');
 const { getPaginationParams, getPaginationMeta, buildSortOptions } = require('../helpers/pagination');
 const { Op } = require('sequelize');
@@ -15,7 +15,7 @@ const applyForJob = async (req, res) => {
       return notFoundResponse(res, 'Job not found');
     }
 
-    if (job.status !== 'open') {
+    if (!['open', 'hiring'].includes(job.status)) {
       return errorResponse(res, 'Job is not available for applications', 400);
     }
 
@@ -74,7 +74,7 @@ const applyForJob = async (req, res) => {
 const applyForShift = async (req, res) => {
   try {
     const guardId = req.user.id;
-    const { shift_id, cover_letter } = req.body;
+    const { shift_id, cover_letter,bid_rate } = req.body;
 
     // Check if shift exists and is open
     const shift = await Shift.findByPk(shift_id);
@@ -102,6 +102,7 @@ const applyForShift = async (req, res) => {
     const application = await Application.create({
       guard_id: guardId,
       shift_id: shift_id,
+      bid_rate: bid_rate,
       cover_letter,
       status: 'applied'
     });
@@ -290,25 +291,54 @@ const acceptApplication = async (req, res) => {
       responded_at: new Date()
     });
 
-    // If it's a job application, update job status
+    // If it's a job application, create job assignment and update job counters/status
     if (application.job_id) {
       const job = application.job;
-      const newHiredGuards = job.hired_guards + 1;
-      const newStatus = newHiredGuards >= job.required_guards ? 'hired' : 'hiring';
-      
-      await job.update({
-        hired_guards: newHiredGuards,
-        status: newStatus
+
+      // Create assignment if not existing
+      const existingJobAssignment = await JobAssignment.findOne({
+        where: { job_id: application.job_id, guard_id: application.guard_id }
       });
+
+      if (!existingJobAssignment) {
+        await JobAssignment.create({
+          job_id: application.job_id,
+          guard_id: application.guard_id,
+          assigned_by: companyId,
+          status: 'assigned'
+        });
+      }
+
+      // Prevent exceeding capacity: count assignments for this job
+      const assignmentsCount = await JobAssignment.count({ where: { job_id: job.id } });
+      const newHiredGuards = Math.max(assignmentsCount, (job.hired_guards || 0));
+      const newStatus = newHiredGuards >= job.required_guards ? 'hired' : 'hiring';
+
+      await job.update({ hired_guards: newHiredGuards, status: newStatus });
     }
 
-    // If it's a shift application, assign guard to shift
+    // If it's a shift application, assign guard via ShiftAssignment (supports multiple guards)
     if (application.shift_id) {
       const shift = application.shift;
-      await shift.update({
-        guard_id: application.guard_id,
-        status: 'assigned'
+
+      // Create assignment if it doesn't already exist
+      const existingAssignment = await ShiftAssignment.findOne({
+        where: { shift_id: application.shift_id, guard_id: application.guard_id }
       });
+
+      if (!existingAssignment) {
+        await ShiftAssignment.create({
+          shift_id: application.shift_id,
+          guard_id: application.guard_id,
+          assigned_by: companyId,
+          status: 'assigned'
+        });
+      }
+
+      // Mark shift as assigned once at least one guard is assigned
+      if (shift.status === 'open') {
+        await shift.update({ status: 'assigned' });
+      }
     }
 
     // Fetch updated application
@@ -401,6 +431,8 @@ const getGuardApplications = async (req, res) => {
       limit = 10,
       status,
       type, // 'job' or 'shift'
+      job_id,
+      shift_id,
       sort_by = 'applied_at',
       sort_order = 'DESC'
     } = req.query;
@@ -411,7 +443,12 @@ const getGuardApplications = async (req, res) => {
     if (status) {
       whereClause.status = status;
     }
-    if (type === 'job') {
+    // Prioritize explicit IDs over generic type filter
+    if (job_id) {
+      whereClause.job_id = job_id;
+    } else if (shift_id) {
+      whereClause.shift_id = shift_id;
+    } else if (type === 'job') {
       whereClause.job_id = { [Op.ne]: null };
     } else if (type === 'shift') {
       whereClause.shift_id = { [Op.ne]: null };

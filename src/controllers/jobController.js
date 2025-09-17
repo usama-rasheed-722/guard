@@ -1,4 +1,4 @@
-const { Job, JobLocation, User, Application, Attendance } = require('../models');
+const { Job, JobLocation, User, Application, Attendance, JobAssignment } = require('../models');
 const { successResponse, errorResponse, serverErrorResponse, notFoundResponse, paginatedResponse } = require('../helpers/response');
 const { getPaginationParams, getPaginationMeta, buildSearchQuery, buildDateRangeQuery, buildSortOptions } = require('../helpers/pagination');
 const { Op } = require('sequelize');
@@ -151,6 +151,22 @@ const getJobs = async (req, res) => {
           model: User,
           as: 'company',
           attributes: ['id', 'name', 'email']
+        },
+        {
+          model: JobAssignment,
+          as: 'assignments',
+          include: [
+            { model: User, as: 'guard', attributes: ['id', 'name', 'email'] }
+          ],
+          required: false
+        },
+        {
+          model: Application,
+          as: 'applications',
+          include: [
+            { model: User, as: 'guard', attributes: ['id', 'name', 'email'] }
+          ],
+          required: false
         }
       ],
       order: buildSortOptions(sort_by, sort_order),
@@ -183,6 +199,14 @@ const getJobById = async (req, res) => {
           model: User,
           as: 'company',
           attributes: ['id', 'name', 'email']
+        },
+        {
+          model: JobAssignment,
+          as: 'assignments',
+          include: [
+            { model: User, as: 'guard', attributes: ['id', 'name', 'email'] }
+          ],
+          required: false
         },
         {
           model: Application,
