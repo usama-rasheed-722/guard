@@ -16,6 +16,8 @@ const Feedback = require('./Feedback');
 const CompanyLocation = require('./CompanyLocation');
 const ShiftAssignment = require('./ShiftAssignment');
 const JobAssignment = require('./JobAssignment');
+const AttendanceAlarm = require('./AttendanceAlarm');
+const AttendancePing = require('./AttendancePing');
 
 // Initialize models
 const models = {
@@ -27,6 +29,8 @@ const models = {
   Shift: Shift(sequelize, DataTypes),
   ShiftAssignment: ShiftAssignment(sequelize, DataTypes),
   JobAssignment: JobAssignment(sequelize, DataTypes),
+  AttendanceAlarm: AttendanceAlarm(sequelize, DataTypes),
+  AttendancePing: AttendancePing(sequelize, DataTypes),
   Application: Application(sequelize, DataTypes),
   Attendance: Attendance(sequelize, DataTypes),
   Wallet: Wallet(sequelize, DataTypes),
