@@ -112,6 +112,11 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'job_id',
       as: 'transactions'
     });
+
+    Job.hasMany(models.JobAssignment, {
+      foreignKey: 'job_id',
+      as: 'assignments'
+    });
   };
 
   return Job;
